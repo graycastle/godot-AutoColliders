@@ -99,8 +99,10 @@ func generate_collider(generate, update_property = '', new_value = ''):
 			# Process the texture into a BitMap
 			var bitmap = BitMap.new()
 			bitmap.create_from_image_alpha(sprite_texture)
+			if current_padding != 0:
+				bitmap.grow_mask(current_padding, Rect2(Vector2(0 + current_padding, 0 + current_padding), bitmap.get_size()))
 			
-			var polygons = bitmap.opaque_to_polygons(Rect2(Vector2(0, 0), bitmap.get_size()))
+			var polygons = bitmap.opaque_to_polygons(Rect2(Vector2(0 + current_padding, 0 + current_padding), bitmap.get_size()))
 			
 			for polygon in polygons:
 				var collider = CollisionPolygon2D.new()
