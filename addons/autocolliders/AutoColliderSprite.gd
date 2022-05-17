@@ -4,7 +4,7 @@ extends Sprite
 class_name AutoColliderSprite
 
 
-export var padding = 0 setget set_padding
+export var padding_percent = 100 setget set_padding
 export(bool) var regenerate setget regenerate
 export(bool) var clear setget clear_collider
 export(bool) var freeze
@@ -13,7 +13,7 @@ export(bool) var freeze
 signal property_changed(property, value)
 
 
-# TODO: Implement the "padding" value that would allow me to increase the size of the collider
+# TODO: Implement the "padding_percent" value that would allow me to increase the size of the collider
 # TODO: Determine why the signal in the _set() function causes polygon updates on previous values
 
 
@@ -29,8 +29,8 @@ func _exit_tree():
 
 
 func set_padding(new_value):
-	print("Padding has changed to " + str(new_value))
-	padding = new_value
+	print("padding_percent has changed to " + str(new_value))
+	padding_percent = new_value
 	if Engine.editor_hint:
 		generate_collider(true)
 
@@ -54,7 +54,7 @@ func generate_collider(generate, update_property = '', new_value = ''):
 			var current_texture = self.texture
 			var current_position = self.position
 			var current_centered = self.centered
-			var current_padding = self.padding
+			var current_padding = self.padding_percent
 			var current_flip_h = self.flip_h
 			var current_flip_v = self.flip_v
 			var current_offset = self.offset
@@ -76,8 +76,8 @@ func generate_collider(generate, update_property = '', new_value = ''):
 							"centered":
 								print("DEBUG: Centered was updated to " + str(new_value))
 								current_centered = new_value
-							"padding":
-								print("DEBUG: Padding was updated")
+							"padding_percent":
+								print("DEBUG: padding_percent was updated")
 								current_padding = new_value
 							"flip_h":
 								print("DEBUG: flip_h was updated")
@@ -99,23 +99,53 @@ func generate_collider(generate, update_property = '', new_value = ''):
 			# Process the texture into a BitMap
 			var bitmap = BitMap.new()
 			bitmap.create_from_image_alpha(sprite_texture)
-			if current_padding != 0:
-				bitmap.grow_mask(current_padding, Rect2(Vector2(0 + current_padding, 0 + current_padding), bitmap.get_size()))
 			
-			var polygons = bitmap.opaque_to_polygons(Rect2(Vector2(0 + current_padding, 0 + current_padding), bitmap.get_size()))
+			var bitmap_transparency = BitMap.new()
+			bitmap_transparency.create_from_image_alpha(sprite_texture)
+			
+			# Loop through all of the bits in the bitmap and invert to identify transparency
+			for i in range(0, bitmap.get_size().y):
+				for j in range(0, bitmap.get_size().x):
+					bitmap_transparency.set_bit(Vector2(j, i), not bitmap_transparency.get_bit(Vector2(j, i)))
+			
+			var polygons = bitmap.opaque_to_polygons(Rect2(Vector2(0, 0), bitmap.get_size()))
+			var transparent_polygons = bitmap_transparency.opaque_to_polygons(Rect2(Vector2(0, 0), bitmap.get_size()))
 			
 			for polygon in polygons:
 				var collider = CollisionPolygon2D.new()
 				collider.polygon = polygon
 				autocollider.add_child(collider)
 			
+			# TODO: Figure out how to subtract the transparency polygons from the autocollider
+			
+			# If we are padding_percent the collider, do so now by scaling it
+			if current_padding != 100:
+				autocollider.scale.x = current_padding * 0.01
+				autocollider.scale.y = current_padding * 0.01
+			
+			# If the autocollider was padded, scale a copy of this node and get its size
+			var autocollider_size = Vector2()
+			if current_padding != 100:
+				# Create an empty bitmap to the correct scale and get its size
+				var autocollider_size_bitmap = BitMap.new()
+				autocollider_size_bitmap.create(Vector2(bitmap.get_size().x * (current_padding * 0.01), bitmap.get_size().y * (current_padding * 0.01)))
+				autocollider_size = autocollider_size_bitmap.get_size()
+			else:
+				autocollider_size = bitmap.get_size()
+
 			# Align the polygon to the Sprite's exact position, depending on if its 
 			# offset is set to centered
 			if current_centered:
-				autocollider.global_position.x = current_position.x - (current_texture.get_width() * 0.5) + current_offset.x
-				autocollider.global_position.y = current_position.y - (current_texture.get_height() * 0.5) + current_offset.y
+				autocollider.position.x = current_position.x - (autocollider_size.x * 0.5)
+				autocollider.position.y = current_position.y - (autocollider_size.y * 0.5)
 			else:
-				autocollider.global_position = current_position
+				autocollider.position = current_position
+				# TODO: Determine how to center the autocollider over the sprite when not padded
+				if current_padding != 100:
+					var width_difference = autocollider_size.x - bitmap.get_size().x
+					var height_difference = autocollider_size.y - bitmap.get_size().y
+					autocollider.position.x -= width_difference * 0.5
+					autocollider.position.y -= height_difference * 0.5
 			
 			# Add the new autocollider to the scene tree as a sibling
 			self.get_parent().add_child(autocollider)
