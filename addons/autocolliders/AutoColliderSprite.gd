@@ -1,8 +1,6 @@
 tool
 extends Sprite
 
-class_name AutoColliderSprite
-
 
 export var padding_percent = 100 setget set_padding
 export(bool) var regenerate setget regenerate
